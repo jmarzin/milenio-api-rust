@@ -1,0 +1,8 @@
+[package]
+name = "milenio-api-rust"
+version = "0.1.0"
+authors = ["jmarzin <jacques.marzin@free.fr>"]
+edition = "2018"
+
+[dependencies]
+rocket = "0.4.2"
