@@ -1,0 +1,137 @@
+Deploy Rocket using Letsencrypt and nginx
+
+Information
+
+This guide uses the domain your-domain.tld and its www. prefixed version. It starts the rocket application on 127.0.0.1:1337 and as the user www-data. The proxy listens on port 80 and 443 though.
+If you need other values, update them accordingly in your nginx and systemd configs.
+
+Prerequisites
+
+You need to have nginx, certbot and rust installed.
+
+Firewall
+
+To reach your website from the internet you might need to open ports 80 and 443 in your firewall.
+
+UFW: sudo ufw allow proto tcp from any to any port 80,443
+iptables: sudo iptables -A INPUT -p tcp --match multiport --dports 80,443 -j ACCEPT You might need to add an outgoing rule here aswell. For example: sudo iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+Creating nginx configuration for Letsencrypt
+
+Create /etc/nginx/letsencrypt.conf with the following content:
+
+location ^~ /.well-known/acme-challenge/ {
+    default_type "text/plain";
+    root /var/www/letsencrypt;
+    try_files $uri $uri/ =404;
+}
+Now create the server config in /etc/nginx/sites-available/your-domain.tld.conf. (/etc/nginx/conf.d/your-domain.tld.conf if sites-available or sites-enabled does not exist).
+
+# http server block with letsencrypt handling and redirect
+server {
+    #listen 80; # Only if sysctl net.ipv6.bindv6only = 1
+    listen [::]:80;
+
+    # Your domain names.
+    server_name your-domain.tld www.your-domain.tld;
+
+    # Include letsencrypt location
+    include letsencrypt.conf;
+
+    # redirect to https version of the site
+    return 301 https://$server_name$request_uri;
+}
+
+# https server block which actually proxies to rocket
+server {
+    #listen 443 ssl http2; # Only if sysctl net.ipv6.bindv6only = 1
+    listen [::]:443 ssl http2;
+
+    # Your domain names (same as in the http block)
+    server_name your-domain.tld www.your-domain.tld;
+
+    # Include letsencrypt location
+    include letsencrypt.conf;
+
+    ## SSL settings (commented for now)
+    #ssl_certificate /etc/letsencrypt/live/your-domain.tld/fullchain.pem;
+    #ssl_certificate_key /etc/letsencrypt/live/your-domain.tld/privkey.pem;
+    #ssl_session_timeout 5m;
+    #ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # don't use SSLv3. Ref: POODLE
+    #ssl_prefer_server_ciphers on;
+
+    location / {
+        # Forward requests to rocket
+        proxy_pass http://127.0.0.1:1337;
+    }
+}
+If you put your config in /etc/nginx/sites-available/ before symlink it now to /etc/nginx/sites-enabled/ and check if your configuration works with sudo nginx -t.
+(eg: cd /etc/nginx/sites-enabled && sudo ln -s ../sites-available/your-domain.tld.conf)
+If you have any errors go back and fix them else you can start or reload nginx.
+
+Starting nginx
+
+If nginx is not running (check with systemctl status nginx) start it with sudo systemctl start nginx && sudo systemctl enable nginx.
+
+Reloading nginx
+
+You can either use systemd to reload nginx with sudo systemctl reload nginx or nginx with sudo nginx -s reload.
+
+Getting the certificates
+
+First create the letsencrypt directory with: sudo mkdir -p /var/www/letsencrypt && sudo chown www-data: /var/www/letsencrypt (replace www-data with the user nginx uses.)
+
+Now you can get your certificate with: sudo certbot certonly --webroot -w /var/www/letsencrypt -d your-domain.tld -d www.your-domain.tld
+You will get something like this:
+
+ - Congratulations! Your certificate and chain have been saved at
+   /etc/letsencrypt/live/your-domain.tld/fullchain.pem. Your cert will
+   expire on (date). To obtain a new version of the certificate in
+   the future, simply run Let's Encrypt again.
+Now go back to /etc/nginx/sites-available/your-domain.tld.conf and uncomment all the lines starting with #ssl_.
+Before:
+
+    ## SSL settings (commented for now)
+    #ssl_certificate /etc/letsencrypt/live/your-domain.tld/fullchain.pem;
+    #ssl_certificate_key /etc/letsencrypt/live/your-domain.tld/privkey.pem;
+    #ssl_session_timeout 5m;
+    #ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # don't use SSLv3. Ref: POODLE
+    #ssl_prefer_server_ciphers on;
+After:
+
+    # SSL settings
+    ssl_certificate /etc/letsencrypt/live/your-domain.tld/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.tld/privkey.pem;
+    ssl_session_timeout 5m;
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # don't use SSLv3. Ref: POODLE
+    ssl_prefer_server_ciphers on;
+Now run sudo nginx -t again to test the updated config and if everything is ok, reload it with sudo nginx -s reload.
+
+Compiling Rocket
+
+You need to install the nightly rust compiler with: rustup install nightly.
+To compile your application simply run rustup run nightly cargo build --release in your crates folder.
+
+Creating systemd service for your application
+
+Create /etc/systemd/system/your-domain.tld.service with the following content:
+
+[Unit]
+Description=My Rocket application for your-domain.tld
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/crates/directory #the User www-data should probably own that directory
+Environment="ROCKET_ENV=prod"
+Environment="ROCKET_ADDRESS=127.0.0.1"
+Environment="ROCKET_PORT=1337"
+Environment="ROCKET_LOG=critical"
+ExecStart=/path/to/crates/directory/target/release/my-application-name
+
+[Install]
+WantedBy=multi-user.target
+Also make sure the user www-data has read and execute permissions to your application.
+
+Now you can start and (if there are no errors) enable your service with sudo systemctl start your-domain.tld.service. Now visit your-domain.tld and it should work.
+
+To automatically start it on reboot also enable the service: sudo systemctl enable your-domain.tld.service
