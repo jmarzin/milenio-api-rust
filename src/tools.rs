@@ -29,17 +29,35 @@ impl<'a, 'r> FromRequest<'a, 'r> for Administrateur {
         let keys: Vec<_> = request.headers().get("Authorization").collect();
         match keys.len() {
             0 => Outcome::Failure((Status::Unauthorized, AdmError::Missing)),
-            1 if is_valid(keys[0]) => Outcome::Success(Administrateur(keys[0].to_string())),
+            1 if is_valid_admin(keys[0]) => Outcome::Success(Administrateur(keys[0].to_string())),
             1 => Outcome::Failure((Status::Unauthorized, AdmError::Invalid)),
             _ => Outcome::Failure((Status::Unauthorized, AdmError::BadCount)),
         }
     }
 }
 
-fn is_valid(key: &str) -> bool {
+fn is_valid_admin(key: &str) -> bool {
     key == "Basic YWRtaW46NTFqdWxpZTI="
 }
 
+pub struct Utilisateur(String);
+
+impl<'a, 'r> FromRequest<'a, 'r> for Utilisateur {
+    type Error = AdmError;
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+        let keys: Vec<_> = request.headers().get("Authorization").collect();
+        match keys.len() {
+            0 => Outcome::Failure((Status::Unauthorized, AdmError::Missing)),
+            1 if is_valid_util(keys[0]) => Outcome::Success(Utilisateur(keys[0].to_string())),
+            1 => Outcome::Failure((Status::Unauthorized, AdmError::Invalid)),
+            _ => Outcome::Failure((Status::Unauthorized, AdmError::BadCount)),
+        }
+    }
+}
+
+fn is_valid_util(key: &str) -> bool {
+    key == "Basic dXRpbGlzYXRldXI6bWVzc2FnZQ=="
+}
 
 #[get("/sensitive")]
 pub fn sensitive(_key: Administrateur) -> Json<String> {

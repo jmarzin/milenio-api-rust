@@ -5,11 +5,11 @@ use std::path::Path;
 use crate::BASE;
 use std::fs::File;
 use std::io::BufReader;
-use crate::tools::Administrateur;
 use lettre_email::Email;
 use lettre::{SmtpClient, Transport, ClientSecurity};
 use lettre::smtp::authentication::{Credentials, Mechanism};
 use lettre::smtp::ConnectionReuseParameters;
+use crate::tools::Utilisateur;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Contact {
@@ -30,7 +30,7 @@ pub fn get_accueil_contact() -> Result<Json<Value>, io::Error> {
 }
 
 #[post("/accueil/message", data = "<contact>")]
-pub fn post_accueil_message(_key: Administrateur, contact: Json<Contact>) -> Result<Json<String>, lettre::smtp::error::Error> {
+pub fn post_accueil_message(_key: Utilisateur, contact: Json<Contact>) -> Result<Json<String>, lettre::smtp::error::Error> {
 
     let texte = format!("{}\nTéléphone : {}\nMail: {}\n Rendez-vous demandé: {}\n{}", contact.nom, contact.telephone, contact.email,
         if contact.creneau.is_empty() {"aucun".to_string()} else { contact.creneau.to_string() }, contact.message);

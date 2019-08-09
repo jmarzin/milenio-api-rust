@@ -68,7 +68,7 @@ pub fn post_accueil_carousel(_key: Administrateur, post_carousel: Json<PostCarou
             liste.push(item)
         }
     }
-    let chaine = ::serde_json::to_string(&liste).unwrap();
+    let chaine = ::serde_json::to_string_pretty(&liste).unwrap();
     let mut file = File::create(path.as_path()).unwrap();
     let _result = file.write_all(chaine.as_bytes());
     Json("carousel.json sauvegardé".to_string())
