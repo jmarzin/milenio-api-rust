@@ -1,11 +1,13 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #![feature(const_string_new)]
 
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 extern crate rocket_multipart_form_data;
 
 extern crate serde_json;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 extern crate rocket_contrib;
 
 extern crate lettre;
@@ -33,12 +35,12 @@ fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     if base_path.exists() {
         unsafe { BASE = fs::read_to_string("base.param")?.parse()? };
     } else {
-        unsafe { BASE = "/home/deploy/milenio/milenioapi/public".to_string()}
+        unsafe { BASE = "/home/deploy/milenio/milenioapi/public".to_string() }
     }
     let cors = rocket_cors::CorsOptions {
+        allow_credentials: true,
         ..Default::default()
-    }
-        .to_cors()?;
+    }.to_cors()?;
 
     rocket::ignite().mount("/",
                            routes![tools::index,
@@ -47,15 +49,19 @@ fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
                                           carousel::get_accueil_carousel,
                                           carousel::post_accueil_carousel,
                                           panneaux::get_accueil_panneaux,
+                                          panneaux::post_accueil_panneaux,
                                           contact::get_accueil_contact,
                                           contact::post_accueil_message,
+                                          contact::post_accueil_contact,
                                           realisations::get_realisations,
+                                          realisations::post_realisations,
                                           cuisines::get_services_cuisines,
                                           rangements::get_services_rangements,
                                           salles_de_bain::get_services_salles_de_bain,
-                                          a_propos::get_a_propos])
-                    .mount("/contenu", StaticFiles::from( Path::new(unsafe { &BASE }).join("contenu")))
-                    .attach(cors)
-                    .launch();
+                                          a_propos::get_a_propos,
+                                          a_propos::post_a_propos])
+        .mount("/contenu", StaticFiles::from(Path::new(unsafe { &BASE }).join("contenu")))
+        .attach(cors)
+        .launch();
     Ok(())
 }

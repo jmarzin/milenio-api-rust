@@ -7,7 +7,7 @@ use rocket_multipart_form_data::{mime, MultipartFormDataOptions, MultipartFormDa
 use std::path::Path;
 use crate::BASE;
 use std::fs::copy;
-use std::env;
+use std::{env, fs};
 
 #[get("/")]
 pub fn index() -> String {
@@ -37,7 +37,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Administrateur {
 }
 
 fn is_valid_admin(key: &str) -> bool {
-    key == "Basic YWRtaW46NTFqdWxpZTI="
+    key == "Basic YWRtaW46dG9uaW82MzI="
 }
 
 pub struct Utilisateur(String);
@@ -64,8 +64,14 @@ pub fn sensitive(_key: Administrateur) -> Json<String> {
     Json("You are an administrator".to_string())
 }
 
+#[derive(Serialize)]
+pub struct Resultat {
+    resultat: String,
+    fichier: String
+}
+
 #[post("/photoupload", data = "<data>")]
-pub fn photo_upload(_key: Administrateur, content_type: &ContentType, data: Data) -> Json<String> {
+pub fn photo_upload(_key: Administrateur, content_type: &ContentType, data: Data) -> Json<Resultat> {
     let mut options = MultipartFormDataOptions::new();
     options.allowed_fields.push(MultipartFormDataField::file("photo").content_type_by_string(Some(mime::IMAGE_STAR)).unwrap());
     options.allowed_fields.push(MultipartFormDataField::text("destination"));
@@ -76,7 +82,6 @@ pub fn photo_upload(_key: Administrateur, content_type: &ContentType, data: Data
     let destination = multipart_form_data.texts.get("destination");
 
     let mut destination_fichier = "";
-
     if let Some(destination) = destination {
         match destination {
             TextField::Single(text_field) => {
@@ -85,23 +90,29 @@ pub fn photo_upload(_key: Administrateur, content_type: &ContentType, data: Data
             _ => {}
         }
     }
-
     if let Some(photo) = photo {
         match photo {
             FileField::Single(file) => {
-                let file_name = &file.file_name;
-                let file_name = file_name.as_ref().unwrap();
+                let file_name = file.file_name.as_ref().unwrap();
                 let path = &file.path;
-                if destination_fichier == "carousel_accueil" {
-                    let dest_path = Path::new(unsafe { &BASE }).join("contenu/accueil/carousel").join(file_name);
-                    let result = copy(path, dest_path);
-                    if result.is_ok() {
-                        return Json("La photo a été téléchargée".to_string())
+                let dest_name = match destination_fichier {
+                    "carousel_accueil" => "contenu/accueil/carousel/".to_string() + file_name,
+                    _ => {
+                        let dest_dir = Path::new(unsafe { &BASE }).join(destination_fichier);
+                        if !dest_dir.exists() {
+                            fs::create_dir(dest_dir).unwrap();
+                        }
+                        destination_fichier.to_string() + "/" + file_name
                     }
+                };
+                let dest_path = Path::new( unsafe { &BASE }).join(&dest_name);
+                let result = copy(&path, &dest_path);
+                if result.is_ok() {
+                    return Json(Resultat {resultat: "OK".to_string(), fichier: dest_name});
                 }
             }
             _ => {}
         }
     }
-    Json("La photo n'a pas pu être téléchargée".to_string())
+    return Json(Resultat {resultat: "KO".to_string(), fichier: "".to_string()});
 }
